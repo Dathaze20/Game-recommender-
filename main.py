@@ -34,6 +34,7 @@ Config.set('graphics', 'height', '750')
 Config.set('kivy', 'keyboard_mode', 'system')
 
 BASE_URL = "https://api.rawg.io/api"
+DEFAULT_API_KEY = "918f5c2b0203449c9024b928a332938c"
 CONFIG_FILE = "game_recommender_config.json"
 
 # ─── Platform definitions (RAWG IDs) ───
@@ -205,7 +206,7 @@ def get_api_key():
     key = config.get('api_key', '')
     if key:
         return key
-    return os.getenv('GAME_API_KEY', '')
+    return os.getenv('GAME_API_KEY', DEFAULT_API_KEY)
 
 
 def save_api_key(key):
