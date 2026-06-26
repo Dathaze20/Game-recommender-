@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from collections import Counter
 from functools import partial
 from threading import Thread
 
@@ -33,40 +34,43 @@ BASE_URL = "https://api.rawg.io/api"
 DEFAULT_API_KEY = "918f5c2b0203449c9024b928a332938c"
 CONFIG_FILE = "game_recommender_config.json"
 
-# ─── Category definitions ───
 CATEGORIES = [
-    {"title": "Trending Now",         "params": {"ordering": "-added", "page_size": 20}},
-    {"title": "Top Rated",            "params": {"ordering": "-rating", "page_size": 20, "metacritic": "80,100"}},
-    {"title": "New Releases",         "params": {"ordering": "-released", "page_size": 20}},
-    {"title": "PlayStation 5",        "params": {"platforms": 187, "ordering": "-added", "page_size": 20}},
-    {"title": "Xbox Series X|S",      "params": {"platforms": 186, "ordering": "-added", "page_size": 20}},
-    {"title": "Nintendo Switch",      "params": {"platforms": 7, "ordering": "-added", "page_size": 20}},
-    {"title": "PC Games",             "params": {"platforms": 4, "ordering": "-rating", "page_size": 20}},
-    {"title": "Best Action Games",    "params": {"genres": "action", "ordering": "-rating", "page_size": 20}},
-    {"title": "RPG Adventures",       "params": {"genres": "role-playing-games-rpg", "ordering": "-rating", "page_size": 20}},
-    {"title": "Shooters",             "params": {"genres": "shooter", "ordering": "-rating", "page_size": 20}},
-    {"title": "Strategy & Tactics",   "params": {"genres": "strategy", "ordering": "-rating", "page_size": 20}},
-    {"title": "Racing Games",         "params": {"genres": "racing", "ordering": "-rating", "page_size": 20}},
-    {"title": "Fighting Games",       "params": {"genres": "fighting", "ordering": "-rating", "page_size": 20}},
-    {"title": "Platformers",          "params": {"genres": "platformer", "ordering": "-rating", "page_size": 20}},
-    {"title": "Sports Games",         "params": {"genres": "sports", "ordering": "-added", "page_size": 20}},
-    {"title": "Indie Gems",           "params": {"genres": "indie", "ordering": "-rating", "page_size": 20}},
-    {"title": "PlayStation 4",        "params": {"platforms": 18, "ordering": "-rating", "page_size": 20}},
-    {"title": "Xbox One",             "params": {"platforms": 1, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Sega Genesis",  "params": {"platforms": 167, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Neo Geo",       "params": {"platforms": 12, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: SNES",          "params": {"platforms": 79, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: NES",           "params": {"platforms": 49, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Nintendo 64",   "params": {"platforms": 83, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Dreamcast",     "params": {"platforms": 106, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: PlayStation 1", "params": {"platforms": 27, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: PlayStation 2", "params": {"platforms": 15, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: GameCube",      "params": {"platforms": 105, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Game Boy Advance", "params": {"platforms": 24, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Atari 2600",    "params": {"platforms": 31, "ordering": "-rating", "page_size": 20}},
-    {"title": "Retro: Sega Saturn",   "params": {"platforms": 107, "ordering": "-rating", "page_size": 20}},
-    {"title": "Mobile: iOS",          "params": {"platforms": 3, "ordering": "-rating", "page_size": 20}},
-    {"title": "Mobile: Android",      "params": {"platforms": 21, "ordering": "-rating", "page_size": 20}},
+    {"title": "Trending Now",           "params": {"ordering": "-added", "page_size": 20}},
+    {"title": "Top Rated",              "params": {"ordering": "-rating", "page_size": 20, "metacritic": "80,100"}},
+    {"title": "All-Time Greatest",      "params": {"metacritic": "95,100", "ordering": "-metacritic", "page_size": 20}},
+    {"title": "Perfect Scores",         "params": {"metacritic": "98,100", "ordering": "-metacritic", "page_size": 20}},
+    {"title": "Highest Rated RPGs",     "params": {"genres": "role-playing-games-rpg", "metacritic": "85,100", "ordering": "-metacritic", "page_size": 20}},
+    {"title": "Japanese Masterpieces",  "params": {"developers": "nintendo,square-enix,capcom,konami,fromsoftware,atlus,sega,bandai-namco-entertainment,platinum-games", "ordering": "-metacritic", "page_size": 20}},
+    {"title": "New Releases",           "params": {"ordering": "-released", "page_size": 20}},
+    {"title": "PlayStation 5",          "params": {"platforms": 187, "ordering": "-added", "page_size": 20}},
+    {"title": "Xbox Series X|S",        "params": {"platforms": 186, "ordering": "-added", "page_size": 20}},
+    {"title": "Nintendo Switch",        "params": {"platforms": 7, "ordering": "-added", "page_size": 20}},
+    {"title": "PC Games",               "params": {"platforms": 4, "ordering": "-rating", "page_size": 20}},
+    {"title": "Best Action Games",      "params": {"genres": "action", "ordering": "-rating", "page_size": 20}},
+    {"title": "RPG Adventures",         "params": {"genres": "role-playing-games-rpg", "ordering": "-rating", "page_size": 20}},
+    {"title": "Shooters",               "params": {"genres": "shooter", "ordering": "-rating", "page_size": 20}},
+    {"title": "Strategy & Tactics",     "params": {"genres": "strategy", "ordering": "-rating", "page_size": 20}},
+    {"title": "Racing Games",           "params": {"genres": "racing", "ordering": "-rating", "page_size": 20}},
+    {"title": "Fighting Games",         "params": {"genres": "fighting", "ordering": "-rating", "page_size": 20}},
+    {"title": "Platformers",            "params": {"genres": "platformer", "ordering": "-rating", "page_size": 20}},
+    {"title": "Sports Games",           "params": {"genres": "sports", "ordering": "-added", "page_size": 20}},
+    {"title": "Indie Gems",             "params": {"genres": "indie", "ordering": "-rating", "page_size": 20}},
+    {"title": "PlayStation 4",          "params": {"platforms": 18, "ordering": "-rating", "page_size": 20}},
+    {"title": "Xbox One",               "params": {"platforms": 1, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Sega Genesis",    "params": {"platforms": 167, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Neo Geo",         "params": {"platforms": 12, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: SNES",            "params": {"platforms": 79, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: NES",             "params": {"platforms": 49, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Nintendo 64",     "params": {"platforms": 83, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Dreamcast",       "params": {"platforms": 106, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: PlayStation 1",   "params": {"platforms": 27, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: PlayStation 2",   "params": {"platforms": 15, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: GameCube",        "params": {"platforms": 105, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Game Boy Advance","params": {"platforms": 24, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Atari 2600",      "params": {"platforms": 31, "ordering": "-rating", "page_size": 20}},
+    {"title": "Retro: Sega Saturn",     "params": {"platforms": 107, "ordering": "-rating", "page_size": 20}},
+    {"title": "Mobile: iOS",            "params": {"platforms": 3, "ordering": "-rating", "page_size": 20}},
+    {"title": "Mobile: Android",        "params": {"platforms": 21, "ordering": "-rating", "page_size": 20}},
 ]
 
 PLATFORM_BADGES = {
@@ -134,7 +138,6 @@ GENRE_SLUG_MAP = {
 }
 
 
-# ─── Config ───
 def load_config():
     try:
         if os.path.exists(CONFIG_FILE):
@@ -158,7 +161,35 @@ def get_api_key():
     return cfg.get('api_key') or os.getenv('GAME_API_KEY', DEFAULT_API_KEY)
 
 
-# ─── Data ───
+def saved_to_game(data):
+    return GameDetails(
+        game_id=data.get('game_id', 0), name=data.get('name', 'Unknown'),
+        background_image=data.get('background_image', ''),
+        rating=data.get('rating', 0), release_date=data.get('release_date', ''),
+        metacritic=data.get('metacritic'), genres=data.get('genres', []),
+        platforms=[], stores=[], screenshots=[],
+        description='', esrb='', playtime=0,
+        developers=[], publishers=[], tags=[]
+    )
+
+
+def game_to_saved(game):
+    return {
+        'game_id': game.game_id, 'name': game.name,
+        'background_image': game.background_image or '',
+        'rating': game.rating or 0, 'release_date': game.release_date or '',
+        'genres': game.genres or [], 'metacritic': game.metacritic
+    }
+
+
+def update_stat(key):
+    cfg = load_config()
+    stats = cfg.get('stats', {})
+    stats[key] = stats.get(key, 0) + 1
+    cfg['stats'] = stats
+    save_config(cfg)
+
+
 class GameDetails:
     __slots__ = ['game_id', 'name', 'description', 'release_date', 'background_image',
                  'rating', 'metacritic', 'genres', 'platforms', 'stores', 'screenshots',
@@ -201,8 +232,6 @@ def api_get(endpoint, params, api_key):
         logging.error(f"API [{endpoint}]: {e}")
     return None
 
-
-# ─── Widgets ───
 
 def rating_text(r):
     filled = min(5, int(r))
@@ -323,13 +352,12 @@ class StoreBadge(Button):
                          bold=True, background_normal='', **kw)
 
 
-# ─── App ───
-
 class GameRecommenderApp(App):
     def __init__(self, **kw):
         super().__init__(**kw)
         self.api_key = get_api_key()
         self.loaded_categories = {}
+        self.current_tab = "browse"
 
     def build(self):
         self.title = "Game Recommender"
@@ -339,13 +367,11 @@ class GameRecommenderApp(App):
         self.sm.add_widget(Screen(name="detail"))
         return self.sm
 
-    # ─── Main Screen (Play Store style) ───
     def _build_main(self):
         screen = Screen(name="main")
         root = BoxLayout(orientation='vertical', spacing=dp(4),
-                         padding=[dp(0), dp(8), dp(0), dp(4)])
+                         padding=[dp(0), dp(8), dp(0), dp(0)])
 
-        # Header
         header = BoxLayout(size_hint_y=None, height=dp(44), padding=[dp(12), dp(0)])
         header.add_widget(Label(
             text="Game Recommender", font_size=sp(22), bold=True,
@@ -354,7 +380,6 @@ class GameRecommenderApp(App):
         ))
         root.add_widget(header)
 
-        # Search
         search_row = BoxLayout(size_hint_y=None, height=dp(42),
                                spacing=dp(6), padding=[dp(12), dp(0), dp(12), dp(0)])
         self.search_input = TextInput(
@@ -372,7 +397,6 @@ class GameRecommenderApp(App):
         search_row.add_widget(sbtn)
         root.add_widget(search_row)
 
-        # Scrollable content area
         self.main_scroll = ScrollView(do_scroll_x=False)
         self.main_content = BoxLayout(orientation='vertical', size_hint_y=None,
                                       spacing=dp(4), padding=[dp(0), dp(6), dp(0), dp(20)])
@@ -386,9 +410,168 @@ class GameRecommenderApp(App):
         self.main_scroll.add_widget(self.main_content)
         root.add_widget(self.main_scroll)
 
+        nav = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(2),
+                        padding=[dp(4), dp(4)])
+        with nav.canvas.before:
+            Color(0.1, 0.1, 0.16, 1)
+            nav._bg = Rectangle(pos=nav.pos, size=nav.size)
+        nav.bind(pos=lambda w, p: setattr(w._bg, 'pos', p),
+                 size=lambda w, s: setattr(w._bg, 'size', s))
+
+        self.nav_buttons = {}
+        for tab_name in ["Browse", "My Games", "Stats"]:
+            is_active = tab_name == "Browse"
+            btn = Button(text=tab_name, font_size=sp(13), bold=True,
+                         background_normal='',
+                         background_color=(0.38, 0.31, 0.85, 1) if is_active else (0.18, 0.18, 0.28, 1))
+            btn.bind(on_release=partial(self._switch_tab, tab_name))
+            nav.add_widget(btn)
+            self.nav_buttons[tab_name] = btn
+        root.add_widget(nav)
+
         screen.add_widget(root)
         Clock.schedule_once(lambda dt: self._load_categories_batch(0), 0.3)
         return screen
+
+    def _switch_tab(self, tab, *args):
+        self.current_tab = tab.lower().replace(" ", "_")
+        for name, btn in self.nav_buttons.items():
+            if name == tab:
+                btn.background_color = (0.38, 0.31, 0.85, 1)
+            else:
+                btn.background_color = (0.18, 0.18, 0.28, 1)
+        if tab == "Browse":
+            self._show_browse()
+        elif tab == "My Games":
+            self._show_my_games()
+        elif tab == "Stats":
+            self._show_stats()
+
+    def _show_browse(self):
+        self.search_input.text = ""
+        self.main_content.clear_widgets()
+        self.loaded_categories = {}
+        self.main_content.add_widget(Label(
+            text="Loading...", font_size=sp(14), size_hint_y=None,
+            height=dp(50), color=(0.5, 0.5, 0.6, 1)
+        ))
+        self._load_categories_batch(0)
+
+    def _show_my_games(self):
+        self.main_content.clear_widgets()
+        cfg = load_config()
+        wishlist = cfg.get('wishlist', [])
+        played = cfg.get('played', [])
+
+        if wishlist:
+            games = [saved_to_game(g) for g in wishlist]
+            self.main_content.add_widget(
+                CategoryRow(title=f"Want to Play ({len(games)})",
+                            games=games, on_game_tap=self._show_detail))
+
+        if played:
+            games = [saved_to_game(g) for g in played]
+            self.main_content.add_widget(
+                CategoryRow(title=f"Played ({len(games)})",
+                            games=games, on_game_tap=self._show_detail))
+
+        if not wishlist and not played:
+            empty_box = BoxLayout(orientation='vertical', size_hint_y=None,
+                                  height=dp(200), padding=[dp(20), dp(40)])
+            empty_box.add_widget(Label(
+                text="No games saved yet!", font_size=sp(18), bold=True,
+                size_hint_y=None, height=dp(30), color=(0.6, 0.6, 0.7, 1)
+            ))
+            empty_box.add_widget(Label(
+                text="Browse games and tap\nWant to Play or Played It\non any game detail page.",
+                font_size=sp(14), size_hint_y=None, height=dp(80),
+                color=(0.45, 0.45, 0.55, 1), halign='center',
+                text_size=(Window.width - dp(60), None)
+            ))
+            self.main_content.add_widget(empty_box)
+
+    def _show_stats(self):
+        self.main_content.clear_widgets()
+        cfg = load_config()
+        wishlist = cfg.get('wishlist', [])
+        played = cfg.get('played', [])
+        stats = cfg.get('stats', {})
+
+        box = BoxLayout(orientation='vertical', size_hint_y=None,
+                        spacing=dp(10), padding=[dp(16), dp(16)])
+        box.bind(minimum_height=box.setter('height'))
+
+        box.add_widget(Label(
+            text="Your Gaming Stats", font_size=sp(20), bold=True,
+            size_hint_y=None, height=dp(40), color=(0.5, 0.4, 1, 1)
+        ))
+
+        items = [
+            ("Want to Play", str(len(wishlist))),
+            ("Games Played", str(len(played))),
+            ("Games Explored", str(stats.get('games_viewed', 0))),
+            ("Searches Made", str(stats.get('searches', 0))),
+        ]
+
+        all_genres = []
+        for g in played + wishlist:
+            all_genres.extend(g.get('genres', []))
+        if all_genres:
+            top = Counter(all_genres).most_common(3)
+            items.append(("Top Genres", ", ".join(t[0] for t in top)))
+
+        for label_text, value in items:
+            row = BoxLayout(size_hint_y=None, height=dp(40),
+                            padding=[dp(12), dp(6)])
+            with row.canvas.before:
+                Color(0.12, 0.12, 0.18, 1)
+                row._bg = RoundedRectangle(pos=row.pos, size=row.size, radius=[dp(8)])
+            row.bind(pos=lambda w, p: setattr(w._bg, 'pos', p),
+                     size=lambda w, s: setattr(w._bg, 'size', s))
+            row.add_widget(Label(text=label_text, font_size=sp(13),
+                                  color=(0.7, 0.7, 0.8, 1), halign='left',
+                                  text_size=(dp(180), None)))
+            row.add_widget(Label(text=value, font_size=sp(15), bold=True,
+                                  color=(1, 0.85, 0.3, 1), halign='right',
+                                  text_size=(dp(140), None)))
+            box.add_widget(row)
+
+        box.add_widget(Label(size_hint_y=None, height=dp(20)))
+
+        if played:
+            avg_rating = sum(g.get('rating', 0) for g in played) / len(played)
+            mc_games = [g for g in played if g.get('metacritic')]
+            avg_mc = sum(g['metacritic'] for g in mc_games) / len(mc_games) if mc_games else 0
+
+            extra_box = BoxLayout(orientation='vertical', size_hint_y=None,
+                                  spacing=dp(8), padding=[dp(0), dp(8)])
+            extra_box.bind(minimum_height=extra_box.setter('height'))
+
+            extra_box.add_widget(Label(
+                text="Played Games Breakdown", font_size=sp(16), bold=True,
+                size_hint_y=None, height=dp(30), color=(0.5, 0.4, 1, 1)
+            ))
+
+            for elabel, evalue in [("Avg Rating", f"{avg_rating:.1f} / 5"),
+                                    ("Avg Metacritic", f"{avg_mc:.0f}" if avg_mc else "N/A")]:
+                erow = BoxLayout(size_hint_y=None, height=dp(36),
+                                 padding=[dp(12), dp(4)])
+                with erow.canvas.before:
+                    Color(0.12, 0.12, 0.18, 1)
+                    erow._bg = RoundedRectangle(pos=erow.pos, size=erow.size, radius=[dp(8)])
+                erow.bind(pos=lambda w, p: setattr(w._bg, 'pos', p),
+                          size=lambda w, s: setattr(w._bg, 'size', s))
+                erow.add_widget(Label(text=elabel, font_size=sp(13),
+                                       color=(0.7, 0.7, 0.8, 1), halign='left',
+                                       text_size=(dp(180), None)))
+                erow.add_widget(Label(text=evalue, font_size=sp(15), bold=True,
+                                       color=(1, 0.85, 0.3, 1), halign='right',
+                                       text_size=(dp(140), None)))
+                extra_box.add_widget(erow)
+
+            box.add_widget(extra_box)
+
+        self.main_content.add_widget(box)
 
     def _load_categories_batch(self, start_idx):
         batch_size = 4
@@ -428,11 +611,11 @@ class GameRecommenderApp(App):
         if next_idx < len(CATEGORIES):
             Clock.schedule_once(lambda dt: self._load_categories_batch(next_idx), 0.5)
 
-    # ─── Search ───
     def _do_search(self):
         query = self.search_input.text.strip()
         if not query:
             return
+        update_stat('searches')
         self.main_content.clear_widgets()
         self.main_content.add_widget(Label(
             text=f'Searching "{query}"...', font_size=sp(14),
@@ -453,7 +636,7 @@ class GameRecommenderApp(App):
         bb = Button(text="< Back to Browse", size_hint_x=None, width=dp(160),
                     font_size=sp(12), background_normal='',
                     background_color=(0.2, 0.2, 0.3, 1))
-        bb.bind(on_release=lambda x: self._back_to_browse())
+        bb.bind(on_release=lambda x: self._switch_tab("Browse"))
         back_row.add_widget(bb)
         back_row.add_widget(Label())
         self.main_content.add_widget(back_row)
@@ -472,18 +655,8 @@ class GameRecommenderApp(App):
                 size_hint_y=None, height=dp(60), color=(0.5, 0.5, 0.6, 1)
             ))
 
-    def _back_to_browse(self):
-        self.search_input.text = ""
-        self.main_content.clear_widgets()
-        self.loaded_categories = {}
-        self.main_content.add_widget(Label(
-            text="Loading...", font_size=sp(14), size_hint_y=None,
-            height=dp(50), color=(0.5, 0.5, 0.6, 1)
-        ))
-        self._load_categories_batch(0)
-
-    # ─── Detail Screen ───
     def _show_detail(self, game):
+        update_stat('games_viewed')
         ds = self.sm.get_screen("detail")
         ds.clear_widgets()
         temp = BoxLayout()
@@ -528,21 +701,18 @@ class GameRecommenderApp(App):
                       padding=[dp(14), dp(4), dp(14), dp(30)], size_hint_y=None)
         c.bind(minimum_height=c.setter('height'))
 
-        # Title
         c.add_widget(Label(
             text=game.name, font_size=sp(22), bold=True, size_hint_y=None,
             height=dp(34), color=(1, 1, 1, 1), halign='left',
             text_size=(Window.width - dp(30), None)
         ))
 
-        # Image
         if game.background_image:
             c.add_widget(AsyncImage(
                 source=game.background_image, size_hint_y=None,
                 height=dp(220), allow_stretch=True, keep_ratio=True
             ))
 
-        # Rating bar
         bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8), padding=[dp(10), dp(6)])
         with bar.canvas.before:
             Color(0.12, 0.12, 0.18, 1)
@@ -563,7 +733,29 @@ class GameRecommenderApp(App):
                                  color=(0.6, 0.6, 0.7, 1), size_hint_x=0.3))
         c.add_widget(bar)
 
-        # Meta
+        cfg = load_config()
+        wl = cfg.get('wishlist', [])
+        pl = cfg.get('played', [])
+        in_wl = any(g.get('game_id') == game.game_id for g in wl)
+        in_pl = any(g.get('game_id') == game.game_id for g in pl)
+
+        btn_row = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
+        wl_btn = Button(
+            text="[Wishlisted]" if in_wl else "+ Want to Play",
+            font_size=sp(12), bold=True, background_normal='',
+            background_color=(0.5, 0.4, 1, 1) if in_wl else (0.22, 0.22, 0.33, 1)
+        )
+        wl_btn.bind(on_release=lambda x: self._toggle_wishlist(game, x))
+        pl_btn = Button(
+            text="[Played]" if in_pl else "+ Played It",
+            font_size=sp(12), bold=True, background_normal='',
+            background_color=(0.2, 0.7, 0.3, 1) if in_pl else (0.22, 0.22, 0.33, 1)
+        )
+        pl_btn.bind(on_release=lambda x: self._toggle_played(game, x))
+        btn_row.add_widget(wl_btn)
+        btn_row.add_widget(pl_btn)
+        c.add_widget(btn_row)
+
         lines = []
         if game.release_date:
             lines.append(f"Released: {game.release_date}")
@@ -578,7 +770,6 @@ class GameRecommenderApp(App):
             ml.bind(texture_size=ml.setter('size'))
             c.add_widget(ml)
 
-        # Platforms
         if game.platforms:
             c.add_widget(self._section("Available On"))
             ps = ScrollView(size_hint_y=None, height=dp(26), do_scroll_y=False)
@@ -591,7 +782,6 @@ class GameRecommenderApp(App):
             ps.add_widget(pr)
             c.add_widget(ps)
 
-        # Stores
         if game.stores:
             c.add_widget(self._section("Buy / Download"))
             ss = ScrollView(size_hint_y=None, height=dp(38), do_scroll_y=False)
@@ -603,7 +793,6 @@ class GameRecommenderApp(App):
             ss.add_widget(sr)
             c.add_widget(ss)
 
-        # Genres
         if game.genres:
             c.add_widget(Label(
                 text=f"Genres:  {'  /  '.join(game.genres)}",
@@ -612,7 +801,6 @@ class GameRecommenderApp(App):
                 text_size=(Window.width - dp(30), None)
             ))
 
-        # Tags
         if game.tags:
             c.add_widget(Label(
                 text=f"Tags:  {', '.join(game.tags)}",
@@ -621,7 +809,6 @@ class GameRecommenderApp(App):
                 text_size=(Window.width - dp(30), None)
             ))
 
-        # Description
         desc = game.description or ''
         if desc:
             c.add_widget(self._section("About This Game"))
@@ -631,7 +818,6 @@ class GameRecommenderApp(App):
             dl.bind(texture_size=dl.setter('size'))
             c.add_widget(dl)
 
-        # Screenshots
         if game.screenshots:
             c.add_widget(self._section("Screenshots"))
             sscr = ScrollView(size_hint_y=None, height=dp(160), do_scroll_y=False)
@@ -644,7 +830,6 @@ class GameRecommenderApp(App):
             sscr.add_widget(srow)
             c.add_widget(sscr)
 
-        # Similar games
         c.add_widget(self._section("You Might Also Like"))
         sim_scroll = ScrollView(size_hint_y=None, height=dp(250), do_scroll_y=False)
         sim_row = BoxLayout(size_hint=(None, None), height=dp(240), spacing=dp(10))
@@ -677,6 +862,36 @@ class GameRecommenderApp(App):
             Clock.schedule_once(lambda dt: self._fill_similar(sim_row, similar))
 
         Thread(target=_fetch, daemon=True).start()
+
+    def _toggle_wishlist(self, game, btn):
+        cfg = load_config()
+        wl = cfg.get('wishlist', [])
+        idx = next((i for i, g in enumerate(wl) if g.get('game_id') == game.game_id), None)
+        if idx is not None:
+            wl.pop(idx)
+            btn.text = "+ Want to Play"
+            btn.background_color = (0.22, 0.22, 0.33, 1)
+        else:
+            wl.append(game_to_saved(game))
+            btn.text = "[Wishlisted]"
+            btn.background_color = (0.5, 0.4, 1, 1)
+        cfg['wishlist'] = wl
+        save_config(cfg)
+
+    def _toggle_played(self, game, btn):
+        cfg = load_config()
+        pl = cfg.get('played', [])
+        idx = next((i for i, g in enumerate(pl) if g.get('game_id') == game.game_id), None)
+        if idx is not None:
+            pl.pop(idx)
+            btn.text = "+ Played It"
+            btn.background_color = (0.22, 0.22, 0.33, 1)
+        else:
+            pl.append(game_to_saved(game))
+            btn.text = "[Played]"
+            btn.background_color = (0.2, 0.7, 0.3, 1)
+        cfg['played'] = pl
+        save_config(cfg)
 
     def _fill_similar(self, row, games):
         row.clear_widgets()
