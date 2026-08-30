@@ -1,0 +1,69 @@
+# ── Secrets / local config ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+credentials.json
+library.json
+game_recommender_config.json
+*.key
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+sdist/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Virtual environments ──────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+
+# ── Testing / linting / typing caches ─────────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+logs/
+game_app.log
+
+# ── Build artifacts ───────────────────────────────────────────────────────
+build/
+dist/
+bin/
+.buildozer/
+*.apk
+*.aab
+*.spec.bak
+
+# ── Editor / OS junk ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
