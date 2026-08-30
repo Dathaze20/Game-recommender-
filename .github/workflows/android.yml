@@ -14,7 +14,7 @@ on:
       cache_version:
         description: "Bump to invalidate the Android SDK/NDK cache"
         required: false
-        default: "v1"
+        default: "v2"
   pull_request:
     paths:
       - "gamerec/**"
@@ -51,7 +51,7 @@ jobs:
     env:
       # Buildozer refuses to run unattended without this.
       BUILDOZER_WARN_ON_ROOT: "0"
-      CACHE_VERSION: ${{ github.event.inputs.cache_version || 'v1' }}
+      CACHE_VERSION: ${{ github.event.inputs.cache_version || 'v2' }}
 
     steps:
       - name: Check out the branch

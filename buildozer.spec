@@ -53,12 +53,31 @@ android.presplash_color = #0E0F17
 android.permissions = android.permission.INTERNET,android.permission.ACCESS_NETWORK_STATE
 
 # ── Android platform ──────────────────────────────────────────────────────
-android.api = 34
+# python-for-android is pinned to a release rather than tracking `master`,
+# which buildozer would otherwise clone. This is not conservatism for its own
+# sake — master currently targets Python 3.14 and builds `charset_normalizer`
+# (a `requests` dependency) as a native Android wheel, which pip 26 then
+# refuses to install:
+#
+#   ERROR: charset_normalizer-3.5.1-cp314-cp314-android_24_arm64_v8a.whl
+#          is not a supported wheel on this platform.
+#
+# v2024.01.21 ships Python 3.11.5 and Kivy 2.3.0, and has no recipe for
+# requests/urllib3/idna/certifi/chardet — they install as ordinary pure-Python
+# wheels, so that whole failure mode disappears. It also fixes the toolchain:
+# buildozer reads RECOMMENDED_NDK_VERSION (25b) from this checkout, and Kivy
+# 2.3.0 is what the pinned Cython 0.29.36 expects.
+p4a.branch = v2024.01.21
+
+# 33 is this p4a release's RECOMMENDED_TARGET_API. Raising it only earns a
+# warning, but there is no reason to build against an API this version was
+# never tested on for a side-loaded debug APK.
+android.api = 33
 android.minapi = 24
 # `android.ndk` is deliberately NOT pinned. Buildozer reads the NDK version
-# that python-for-android recommends out of the p4a checkout it clones, and
-# hard-coding a different one here is a reliable way to get a toolchain that
-# p4a's own recipes were not tested against.
+# that python-for-android recommends out of the p4a checkout, and hard-coding
+# a different one is a reliable way to get a toolchain its recipes were never
+# tested against.
 android.archs = arm64-v8a,armeabi-v7a
 android.accept_sdk_license = True
 android.enable_androidx = True
