@@ -1,0 +1,12 @@
+# Test and lint dependencies.
+#
+# Deliberately does NOT install Kivy: everything under `gamerec/` except
+# `gamerec/ui/` is free of Kivy imports, which is what lets the test suite run
+# headless (and fast) in CI. Install `requirements.txt` as well if you want to
+# run the app itself.
+
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+pytest>=8.0.0
+ruff>=0.6.0
