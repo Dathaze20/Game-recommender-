@@ -24,7 +24,6 @@ on:
   push:
     branches:
       - main
-      - "claude/**"
     paths:
       - "gamerec/**"
       - "main.py"
@@ -41,7 +40,11 @@ permissions:
 jobs:
   build:
     name: Build debug APK
-    runs-on: ubuntu-latest
+    # Pinned deliberately. On ubuntu-24.04 the host libtool (2.5.x) no longer
+    # provides LT_SYS_SYMBOL_USCORE, which python-for-android's libffi recipe
+    # still calls from autogen.sh, so every build dies before compiling
+    # anything. 22.04 ships libtool 2.4.x, which libffi expects.
+    runs-on: ubuntu-22.04
     # A cold build compiles CPython, OpenSSL and Kivy for two ABIs.
     timeout-minutes: 120
 
@@ -63,7 +66,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -82,6 +85,9 @@ jobs:
             automake \
             libtool \
             libtool-bin \
+            libltdl-dev \
+            gettext \
+            autopoint \
             pkg-config \
             cmake \
             libffi-dev \
@@ -103,6 +109,11 @@ jobs:
           # installed one, so a pip pin here would be silently meaningless.
           python -m pip install "buildozer==1.5.0"
           buildozer --version
+          echo "── Host toolchain (libffi's autogen.sh depends on these) ──"
+          autoconf --version | head -1
+          automake --version | head -1
+          libtool --version | head -1
+          echo "ImageOS=${ImageOS:-unknown}"
 
       - name: Restore Android SDK/NDK cache
         uses: actions/cache@v4
@@ -226,7 +237,7 @@ jobs:
         with:
           name: buildozer-failure-logs
           path: |
-            .buildozer/android/platform/build-*/build.log
-            .buildozer/android/platform/python-for-android/**/*.log
+            .buildozer/**/*.log
+            /home/runner/.buildozer/**/*.log
           if-no-files-found: ignore
           retention-days: 7
