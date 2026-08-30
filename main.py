@@ -9,10 +9,15 @@ from __future__ import annotations
 import sys
 
 from kivy.config import Config
+from kivy.utils import platform
 
 # Desktop-only convenience: a phone-shaped window so the mobile layout can be
-# checked without a device. Android ignores these and uses the real screen.
-if sys.platform not in ("android",):
+# checked without a device.
+#
+# This must test Kivy's `platform`, not `sys.platform`: inside a
+# python-for-android APK `sys.platform` is "linux", so a check against
+# "android" would never fire on the one platform it is meant to exclude.
+if platform != "android":
     Config.set("graphics", "width", "420")
     Config.set("graphics", "height", "820")
 Config.set("kivy", "keyboard_mode", "system")

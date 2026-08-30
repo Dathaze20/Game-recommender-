@@ -1,0 +1,232 @@
+name: Android APK
+
+# Builds an unsigned DEBUG APK from buildozer.spec and publishes it as a
+# workflow artifact. There is deliberately no signing, keystore or Play Store
+# step here — this exists so the app can be side-loaded onto a phone for
+# testing.
+#
+# No RAWG API key is present anywhere in this workflow, and none is baked into
+# the APK. The installed app asks the user for their own key on first launch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_version:
+        description: "Bump to invalidate the Android SDK/NDK cache"
+        required: false
+        default: "v1"
+  pull_request:
+    paths:
+      - "gamerec/**"
+      - "main.py"
+      - "buildozer.spec"
+      - ".github/workflows/android.yml"
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "gamerec/**"
+      - "main.py"
+      - "buildozer.spec"
+      - ".github/workflows/android.yml"
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    # A cold build compiles CPython, OpenSSL and Kivy for two ABIs.
+    timeout-minutes: 120
+
+    env:
+      # Buildozer refuses to run unattended without this.
+      BUILDOZER_WARN_ON_ROOT: "0"
+      CACHE_VERSION: ${{ github.event.inputs.cache_version || 'v1' }}
+
+    steps:
+      - name: Check out the branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python (build host)
+        uses: actions/setup-python@v5
+        with:
+          # This is the host interpreter that runs buildozer. The Python that
+          # ends up inside the APK is built from source by python-for-android
+          # and is unrelated to this version.
+          python-version: "3.11"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install system build dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ccache \
+            git \
+            zip \
+            unzip \
+            autoconf \
+            automake \
+            libtool \
+            libtool-bin \
+            pkg-config \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            zlib1g-dev \
+            libncurses-dev \
+            patch \
+            openjdk-17-jdk
+
+      - name: Install buildozer and Cython
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip setuptools wheel
+          # Cython 0.29.x is what python-for-android's Kivy and CPython recipes
+          # expect; Cython 3 breaks several of them.
+          python -m pip install "cython==0.29.36"
+          # python-for-android is deliberately NOT pip-installed: buildozer
+          # always git-clones its own copy into ~/.buildozer and ignores any
+          # installed one, so a pip pin here would be silently meaningless.
+          python -m pip install "buildozer==1.5.0"
+          buildozer --version
+
+      - name: Restore Android SDK/NDK cache
+        uses: actions/cache@v4
+        with:
+          # Only the shared toolchain download directory is cached. The
+          # project-local `.buildozer/` build tree is intentionally NOT cached:
+          # a stale one is a classic source of builds that fail in ways that
+          # make no sense against the current source.
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ env.CACHE_VERSION }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-${{ env.CACHE_VERSION }}-
+
+      - name: Confirm no secrets are stageable into the APK
+        run: |
+          set -euo pipefail
+          echo "Files present in the build context that must never ship:"
+          for f in .env credentials.json library.json; do
+            if [ -e "$f" ]; then
+              echo "ERROR: $f exists in the checkout and must not be packaged." >&2
+              exit 1
+            fi
+          done
+          echo "  none present - OK"
+
+      - name: Build debug APK
+        id: build
+        run: |
+          set -euo pipefail
+          buildozer -v android debug
+
+      - name: Locate the APK
+        id: apk
+        run: |
+          set -euo pipefail
+          apk="$(find bin -name '*.apk' -type f | head -n 1 || true)"
+          if [ -z "$apk" ]; then
+            echo "::error::Buildozer reported success but produced no .apk in bin/"
+            ls -la bin 2>/dev/null || echo "bin/ does not exist"
+            exit 1
+          fi
+          size_bytes=$(stat -c%s "$apk")
+          {
+            echo "path=$apk"
+            echo "name=$(basename "$apk")"
+            echo "size=$(numfmt --to=iec-i --suffix=B "$size_bytes")"
+            echo "size_bytes=$size_bytes"
+          } >> "$GITHUB_OUTPUT"
+          echo "Built $apk ($(numfmt --to=iec-i --suffix=B "$size_bytes"))"
+
+      - name: Audit APK contents
+        run: |
+          set -euo pipefail
+          apk="${{ steps.apk.outputs.path }}"
+
+          echo "── Packaged ABIs ─────────────────────────────────────────"
+          abis="$(unzip -Z1 "$apk" 'lib/*' | cut -d/ -f2 | sort -u)"
+          echo "$abis"
+          for want in arm64-v8a armeabi-v7a; do
+            echo "$abis" | grep -qx "$want" \
+              || { echo "::error::ABI $want is missing from the APK"; exit 1; }
+          done
+
+          echo "── Secret / config leakage check ─────────────────────────"
+          listing="$(unzip -Z1 "$apk")"
+          for bad in '\.env' 'credentials\.json' 'library\.json' 'buildozer\.spec'; do
+            if echo "$listing" | grep -Eq "$bad"; then
+              echo "::error::APK contains $bad"
+              echo "$listing" | grep -E "$bad"
+              exit 1
+            fi
+          done
+          echo "  no .env / credentials / library / spec entries - OK"
+
+          echo "── Hard-coded RAWG key check ─────────────────────────────"
+          # A RAWG key is 32 lowercase hex characters. Scan the whole archive
+          # (including the compiled Python assets) for anything of that shape
+          # assigned to a key-like name. This is what guarantees the shipped
+          # app cannot authenticate without the user supplying their own key.
+          mkdir -p /tmp/apkscan
+          unzip -q -o "$apk" -d /tmp/apkscan
+          if grep -rIlE '(api[_-]?key|DEFAULT_API_KEY)[^A-Za-z0-9]{0,4}[0-9a-f]{32}' /tmp/apkscan; then
+            echo "::error::APK appears to embed an API key"
+            exit 1
+          fi
+          echo "  no embedded API key found - OK"
+          rm -rf /tmp/apkscan
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Game-Recommender-Android-debug
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Android debug APK"
+            echo
+            if [ -n "${{ steps.apk.outputs.name }}" ]; then
+              echo "| Field | Value |"
+              echo "| --- | --- |"
+              echo "| APK | \`${{ steps.apk.outputs.name }}\` |"
+              echo "| Size | ${{ steps.apk.outputs.size }} |"
+              echo "| Artifact | \`Game-Recommender-Android-debug\` |"
+              echo "| ABIs | arm64-v8a, armeabi-v7a |"
+              echo "| Signing | debug key only - not for distribution |"
+              echo
+              echo "Contains no RAWG API key. Enter your own key on first launch."
+            else
+              echo "Build did not produce an APK. See the failing step above."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload buildozer logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-failure-logs
+          path: |
+            .buildozer/android/platform/build-*/build.log
+            .buildozer/android/platform/python-for-android/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

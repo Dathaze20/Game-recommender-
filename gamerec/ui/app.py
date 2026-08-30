@@ -131,9 +131,14 @@ class GameRecommenderApp(App):
 
     # ── first-run data migration ────────────────────────────────────────
     def _import_legacy_data(self) -> None:
-        """Adopt a pre-1.0 config file from the working directory, once."""
-        legacy_path = os.path.join(os.getcwd(), LEGACY_FILENAME)
+        """Adopt a pre-1.0 config file from the working directory, once.
+
+        Only Pydroid 3 and desktop runs ever had such a file. Inside an APK
+        there is no meaningful working directory — and ``os.getcwd()`` can even
+        raise there — so the lookup itself is inside the guard.
+        """
         try:
+            legacy_path = os.path.join(os.getcwd(), LEGACY_FILENAME)
             found_key = self.storage.import_legacy(legacy_path)
         except Exception:  # noqa: BLE001 - never block startup on migration
             log.warning("Legacy import failed", exc_info=True)
