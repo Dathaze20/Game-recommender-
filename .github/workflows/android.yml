@@ -107,8 +107,17 @@ jobs:
           # python-for-android is deliberately NOT pip-installed: buildozer
           # always git-clones its own copy into ~/.buildozer and ignores any
           # installed one, so a pip pin here would be silently meaningless.
-          python -m pip install "buildozer==1.5.0"
+          #
+          # virtualenv is pinned below 21 on purpose. python-for-android builds
+          # a host venv (`virtualenv venv && pip install -U pip`) to stage the
+          # pure-Python packages. virtualenv 21.x seeds that venv with a pip
+          # whose `bin/pip` launcher and `pip/_internal` disagree, so the very
+          # first pip call inside it dies with:
+          #   ImportError: cannot import name 'BuildDependencyInstallError'
+          # 20.x is the long-stable line p4a has always been built against.
+          python -m pip install "buildozer==1.5.0" "virtualenv<21"
           buildozer --version
+          python -m pip show virtualenv | head -n2 || true
 
       - name: Record host toolchain versions
         # Diagnostics only, and deliberately non-fatal: `libtool --version`
@@ -150,7 +159,9 @@ jobs:
         id: build
         run: |
           set -euo pipefail
-          buildozer -v android debug
+          # tee so the log survives as an artifact; pipefail keeps buildozer's
+          # exit status authoritative rather than tee's.
+          buildozer -v android debug 2>&1 | tee buildozer-build.log
 
       - name: Locate the APK
         id: apk
@@ -244,7 +255,7 @@ jobs:
         with:
           name: buildozer-failure-logs
           path: |
+            buildozer-build.log
             .buildozer/**/*.log
-            /home/runner/.buildozer/**/*.log
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 7
