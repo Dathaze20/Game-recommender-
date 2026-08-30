@@ -109,11 +109,18 @@ jobs:
           # installed one, so a pip pin here would be silently meaningless.
           python -m pip install "buildozer==1.5.0"
           buildozer --version
-          echo "── Host toolchain (libffi's autogen.sh depends on these) ──"
-          autoconf --version | head -1
-          automake --version | head -1
-          libtool --version | head -1
+
+      - name: Record host toolchain versions
+        # Diagnostics only, and deliberately non-fatal: `libtool --version`
+        # pipes through sed, so `| head` makes sed die with EPIPE. Under
+        # `pipefail` that once failed the whole build. A step that only prints
+        # information must never be able to break packaging.
+        continue-on-error: true
+        run: |
           echo "ImageOS=${ImageOS:-unknown}"
+          autoconf --version | head -n1
+          automake --version | head -n1
+          libtool --version | head -n1
 
       - name: Restore Android SDK/NDK cache
         uses: actions/cache@v4
@@ -173,16 +180,16 @@ jobs:
           abis="$(unzip -Z1 "$apk" 'lib/*' | cut -d/ -f2 | sort -u)"
           echo "$abis"
           for want in arm64-v8a armeabi-v7a; do
-            echo "$abis" | grep -qx "$want" \
+            grep -qx "$want" <<< "$abis" \
               || { echo "::error::ABI $want is missing from the APK"; exit 1; }
           done
 
           echo "── Secret / config leakage check ─────────────────────────"
           listing="$(unzip -Z1 "$apk")"
           for bad in '\.env' 'credentials\.json' 'library\.json' 'buildozer\.spec'; do
-            if echo "$listing" | grep -Eq "$bad"; then
+            if grep -Eq "$bad" <<< "$listing"; then
               echo "::error::APK contains $bad"
-              echo "$listing" | grep -E "$bad"
+              grep -E "$bad" <<< "$listing" || true
               exit 1
             fi
           done
