@@ -142,6 +142,7 @@ class DetailScreen(Screen):
                     source=game.background_image,
                     fallback_text=game.name,
                     radius=theme.RADIUS_MD,
+                    request_width=theme.HERO_IMAGE_WIDTH,
                     size_hint_y=None,
                     height=theme.HERO_HEIGHT,
                 )
@@ -264,6 +265,7 @@ class DetailScreen(Screen):
                     RemoteImage(
                         source=url,
                         radius=theme.RADIUS_SM,
+                        request_width=theme.SHOT_IMAGE_WIDTH,
                         size_hint=(None, None),
                         width=theme.SHOT_WIDTH,
                         height=theme.SHOT_HEIGHT,

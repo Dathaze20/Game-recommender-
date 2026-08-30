@@ -18,8 +18,10 @@ RAWG_SIGNUP_URL = "https://rawg.io/apikey"
 INITIAL_CATEGORY_CHUNK = 3
 CATEGORY_CHUNK = 3
 
-#: Results requested per collection row.
-ROW_PAGE_SIZE = 20
+#: Results requested per collection row. Each card is a widget holding a
+#: decoded texture, so this is the single biggest lever on scroll smoothness
+#: and memory on a phone; 12 still fills several screens of horizontal swipe.
+ROW_PAGE_SIZE = 12
 SEARCH_PAGE_SIZE = 30
 SIMILAR_PAGE_SIZE = 12
 SCREENSHOT_PAGE_SIZE = 8

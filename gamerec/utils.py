@@ -31,6 +31,9 @@ _MONTHS = (
 
 MAX_STARS = 5
 
+#: RAWG serves every image from this prefix.
+_RAWG_MEDIA_PREFIX = "https://media.rawg.io/media/"
+
 
 def clamp(value: float, low: float, high: float) -> float:
     """Constrain ``value`` to the inclusive ``[low, high]`` range."""
@@ -91,6 +94,37 @@ def rating_text(rating: Any) -> str:
     value = clamp(safe_float(rating), 0.0, float(MAX_STARS))
     filled = int(value)
     return "{}{} {:.1f}".format("*" * filled, "." * (MAX_STARS - filled), value)
+
+
+def rating_compact(rating: Any) -> str:
+    """One-glance rating for a small card: ``"4.5"``, or ``""`` if unrated.
+
+    The card is only ~130dp wide. A five-character ASCII star bar at that size
+    is noise rather than information, so the cards show the number and the
+    detail screen keeps the full bar where there is room for it.
+    """
+    value = clamp(safe_float(rating), 0.0, float(MAX_STARS))
+    return f"{value:.1f}" if value > 0 else ""
+
+
+def sized_image_url(url: Any, width: int) -> str:
+    """Ask RAWG's CDN for an image scaled to roughly ``width`` pixels.
+
+    RAWG serves resized variants under ``/media/resize/<width>/-/...``. Cover
+    art is otherwise delivered at full size — often 1920px wide — and then
+    squeezed into a 130dp card, which both wastes bandwidth and looks soft
+    because the GPU is downscaling by a factor of five.
+
+    Anything that is not a plain RAWG media URL, or that is already resized or
+    cropped, is returned untouched.
+    """
+    raw = safe_str(url)
+    if not raw or width <= 0 or not raw.startswith(_RAWG_MEDIA_PREFIX):
+        return raw
+    remainder = raw[len(_RAWG_MEDIA_PREFIX):]
+    if remainder.startswith(("resize/", "crop/")):
+        return raw
+    return f"{_RAWG_MEDIA_PREFIX}resize/{int(width)}/-/{remainder}"
 
 
 def metacritic_band(score: Any) -> str | None:

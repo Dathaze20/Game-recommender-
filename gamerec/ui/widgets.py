@@ -30,7 +30,7 @@ from kivy.uix.widget import Widget
 
 from ..constants import platform_style, store_style
 from ..models import GameDetails, StoreLink
-from ..utils import rating_text, release_year, safe_str
+from ..utils import rating_compact, release_year, safe_str, sized_image_url
 from . import theme
 from .links import open_url
 
@@ -256,14 +256,24 @@ class RemoteImage(RoundedBox):
         source: str,
         fallback_text: str = "",
         radius: float = theme.RADIUS_SM,
+        request_width: int = 0,
         **kwargs,
     ) -> None:
         kwargs.setdefault("padding", [0, 0])
         super().__init__(bg_color=theme.SURFACE_SUNKEN, radius=radius, **kwargs)
         self._fallback_text = _initials(fallback_text)
         self._image: AsyncImage | None = None
-        if source:
-            self._show_image(source)
+        self._original_source = safe_str(source)
+        self._tried_original = False
+
+        display = (
+            sized_image_url(self._original_source, request_width)
+            if request_width
+            else self._original_source
+        )
+        self._display_source = display
+        if display:
+            self._show_image(display)
         else:
             self._show_placeholder()
 
@@ -273,6 +283,10 @@ class RemoteImage(RoundedBox):
             allow_stretch=True,
             keep_ratio=False,
             nocache=False,
+            # Cover art still arrives larger than the card. Without mipmaps the
+            # GPU point-samples the downscale, which is what makes the art look
+            # soft and shimmer while a row is scrolling.
+            mipmap=True,
         )
         # `on_error` exists on Kivy >= 2.0; on anything older we simply do
         # without the failure state rather than refusing to render.
@@ -282,7 +296,25 @@ class RemoteImage(RoundedBox):
         self.add_widget(image)
 
     def _on_error(self, *_args) -> None:
-        Clock.schedule_once(lambda _dt: self._show_placeholder(), 0)
+        Clock.schedule_once(lambda _dt: self._handle_error(), 0)
+
+    def _handle_error(self) -> None:
+        """Retry at full size before giving up on the image entirely.
+
+        If RAWG ever stops serving the resized variant, this degrades to the
+        original URL rather than turning every cover into a placeholder.
+        """
+        if (
+            not self._tried_original
+            and self._original_source
+            and self._display_source != self._original_source
+        ):
+            self._tried_original = True
+            self._display_source = self._original_source
+            self.clear_widgets()
+            self._show_image(self._original_source)
+            return
+        self._show_placeholder()
 
     def _show_placeholder(self) -> None:
         self.clear_widgets()
@@ -435,6 +467,7 @@ class GameCard(TappableMixin, RoundedBox):
             RemoteImage(
                 source=game.background_image,
                 fallback_text=game.name,
+                request_width=theme.CARD_IMAGE_WIDTH,
                 size_hint_y=None,
                 height=art_height,
             )
@@ -446,26 +479,27 @@ class GameCard(TappableMixin, RoundedBox):
                 font_size=theme.FONT_CAPTION,
                 bold=True,
                 size_hint_y=None,
-                height=dp(17),
+                height=dp(20),
             )
         )
 
-        meta = BoxLayout(size_hint_y=None, height=dp(15), spacing=theme.GAP_TIGHT)
+        meta = BoxLayout(size_hint_y=None, height=dp(18), spacing=theme.GAP_TIGHT)
         meta.add_widget(
             LineLabel(
-                text=rating_text(game.rating),
-                font_size=theme.FONT_MICRO,
+                text=rating_compact(game.rating),
+                font_size=theme.FONT_CAPTION,
+                bold=True,
                 color=theme.ACCENT,
-                size_hint_x=0.62,
+                size_hint_x=0.5,
             )
         )
         meta.add_widget(
             LineLabel(
                 text=release_year(game.release_date),
-                font_size=theme.FONT_MICRO,
+                font_size=theme.FONT_CAPTION,
                 color=theme.TEXT_FAINT,
                 halign="right",
-                size_hint_x=0.38,
+                size_hint_x=0.5,
             )
         )
         self.add_widget(meta)
@@ -525,7 +559,7 @@ class CategoryRow(BoxLayout):
         header = BoxLayout(
             orientation="vertical",
             size_hint_y=None,
-            height=theme.ROW_HEADER_HEIGHT if subtitle else dp(30),
+            height=theme.ROW_HEADER_HEIGHT if subtitle else dp(34),
             padding=[theme.GUTTER, 0],
         )
         header.add_widget(
@@ -534,7 +568,7 @@ class CategoryRow(BoxLayout):
                 font_size=theme.FONT_HEADING,
                 bold=True,
                 size_hint_y=None,
-                height=dp(26),
+                height=dp(30),
             )
         )
         if subtitle:
@@ -544,7 +578,7 @@ class CategoryRow(BoxLayout):
                     font_size=theme.FONT_CAPTION,
                     color=theme.TEXT_FAINT,
                     size_hint_y=None,
-                    height=dp(15),
+                    height=dp(19),
                 )
             )
         self.add_widget(header)

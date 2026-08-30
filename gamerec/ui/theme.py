@@ -88,16 +88,16 @@ FONT_MICRO = sp(10)
 # ── Sizing ────────────────────────────────────────────────────────────────
 #: Android's accessibility guidance puts the minimum touch target at 48dp.
 TOUCH_TARGET = dp(48)
-CONTROL_HEIGHT = dp(44)
-HEADER_HEIGHT = dp(52)
+CONTROL_HEIGHT = dp(48)
+HEADER_HEIGHT = dp(56)
 NAV_HEIGHT = dp(56)
 
 CARD_WIDTH = dp(132)
 CARD_ART_RATIO = 1.32
-CARD_META_HEIGHT = dp(52)
+CARD_META_HEIGHT = dp(58)
 CARD_HEIGHT = CARD_WIDTH * CARD_ART_RATIO + CARD_META_HEIGHT
 
-ROW_HEADER_HEIGHT = dp(42)
+ROW_HEADER_HEIGHT = dp(54)
 ROW_HEIGHT = ROW_HEADER_HEIGHT + CARD_HEIGHT + GAP_LOOSE
 
 HERO_HEIGHT = dp(208)
@@ -106,6 +106,14 @@ SHOT_HEIGHT = dp(140)
 
 #: Movement beyond this during a touch counts as a swipe, not a tap.
 TAP_SLOP = dp(14)
+
+# ── Image request sizes ───────────────────────────────────────────────────
+# Pixel widths requested from RAWG's resizing CDN. Roughly 3x the dp size the
+# image is drawn at, which is the density of a modern phone, so the texture is
+# sharp without downloading a 1920px cover for a 132dp card.
+CARD_IMAGE_WIDTH = 420
+HERO_IMAGE_WIDTH = 1280
+SHOT_IMAGE_WIDTH = 800
 
 
 def state_color(kind: str) -> RGBA:

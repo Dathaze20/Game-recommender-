@@ -116,8 +116,11 @@ class HomeScreen(Screen):
         )
         header.add_widget(
             LineLabel(
+                # FONT_HEADING rather than FONT_TITLE: `sp` scales with the
+                # device's font-size setting, and at the larger settings the
+                # title was being ellipsised to "Game Recomme...".
                 text="Game Recommender",
-                font_size=theme.FONT_TITLE,
+                font_size=theme.FONT_HEADING,
                 bold=True,
             )
         )
@@ -129,8 +132,8 @@ class HomeScreen(Screen):
                 text_color=theme.TEXT_MUTED,
                 font_size=theme.FONT_CAPTION,
                 size_hint_x=None,
-                width=dp(62),
-                height=dp(34),
+                width=dp(58),
+                height=dp(36),
             )
         )
         return header
@@ -159,7 +162,10 @@ class HomeScreen(Screen):
             hint_text_color=theme.TEXT_FAINT,
             cursor_color=theme.PRIMARY,
             font_size=theme.FONT_BODY,
-            padding=[dp(10), dp(11)],
+            # Vertical padding is deliberately small: the field is a fixed
+            # height and TextInput does not centre its own line, so generous
+            # top padding is what pushed descenders out of the bottom.
+            padding=[dp(12), dp(9)],
         )
         self.search_input.bind(text=self._on_search_text)
         self.search_input.bind(on_text_validate=lambda _w: self._run_search(immediate=True))

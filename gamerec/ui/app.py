@@ -14,6 +14,7 @@ from collections.abc import Sequence
 
 from kivy.app import App
 from kivy.core.window import Window
+from kivy.loader import Loader
 from kivy.uix.screenmanager import NoTransition, ScreenManager, SlideTransition
 
 from .. import __version__
@@ -87,6 +88,7 @@ class GameRecommenderApp(App):
     def build(self):
         self.title = APP_NAME
         Window.clearcolor = (0.055, 0.058, 0.086, 1)
+        self._tune_image_loader()
 
         data_dir = self.user_data_dir
         configure_logging(data_dir)
@@ -122,6 +124,19 @@ class GameRecommenderApp(App):
 
         Window.bind(on_keyboard=self._on_keyboard)
         return self.manager
+
+    @staticmethod
+    def _tune_image_loader() -> None:
+        """Fetch cover art in parallel without stuttering the scroll.
+
+        Kivy's default of two loader threads makes a row of cards trickle in
+        one at a time over mobile latency. `max_upload_per_frame` stays low on
+        purpose: it caps how many decoded textures are pushed to the GPU per
+        frame, and raising it is what turns image loading into visible jank
+        while a row is moving.
+        """
+        Loader.num_workers = 6
+        Loader.max_upload_per_frame = 2
 
     def on_stop(self) -> None:
         try:

@@ -14,11 +14,13 @@ from gamerec.utils import (
     format_release,
     join_names,
     metacritic_band,
+    rating_compact,
     rating_text,
     release_year,
     safe_float,
     safe_int,
     safe_str,
+    sized_image_url,
     strip_html,
 )
 
@@ -156,3 +158,66 @@ class TestGeneration:
         assert generation.current == 0
         token = generation.next()
         assert generation.current == token
+
+
+class TestRatingCompact:
+    @pytest.mark.parametrize(
+        ("rating", "expected"),
+        [(4.47, "4.5"), (5, "5.0"), (3.0, "3.0"), (9.9, "5.0")],
+    )
+    def test_formats_one_decimal(self, rating, expected):
+        assert rating_compact(rating) == expected
+
+    @pytest.mark.parametrize("missing", [0, None, "", "abc", -2, []])
+    def test_unrated_games_show_nothing(self, missing):
+        assert rating_compact(missing) == ""
+
+    def test_is_ascii_only(self):
+        assert rating_compact(4.5).isascii()
+
+
+class TestSizedImageUrl:
+    BASE = "https://media.rawg.io/media/games/456/456dea5e.jpg"
+
+    def test_inserts_a_resize_segment(self):
+        assert sized_image_url(self.BASE, 420) == (
+            "https://media.rawg.io/media/resize/420/-/games/456/456dea5e.jpg"
+        )
+
+    def test_screenshot_paths_work_too(self):
+        url = "https://media.rawg.io/media/screenshots/abc/def.jpg"
+        assert sized_image_url(url, 800) == (
+            "https://media.rawg.io/media/resize/800/-/screenshots/abc/def.jpg"
+        )
+
+    @pytest.mark.parametrize(
+        "already",
+        [
+            "https://media.rawg.io/media/resize/640/-/games/a/b.jpg",
+            "https://media.rawg.io/media/crop/600/400/games/a/b.jpg",
+        ],
+    )
+    def test_leaves_already_sized_urls_alone(self, already):
+        assert sized_image_url(already, 420) == already
+
+    @pytest.mark.parametrize(
+        "foreign",
+        [
+            "https://example.com/cover.jpg",
+            "http://media.rawg.io/media/games/a/b.jpg",
+            "https://cdn.rawg.io/media/games/a/b.jpg",
+        ],
+    )
+    def test_non_rawg_urls_are_untouched(self, foreign):
+        assert sized_image_url(foreign, 420) == foreign
+
+    @pytest.mark.parametrize("bad", [None, "", [], {}])
+    def test_missing_url_returns_empty(self, bad):
+        assert sized_image_url(bad, 420) == ""
+
+    @pytest.mark.parametrize("width", [0, -1])
+    def test_non_positive_width_is_a_no_op(self, width):
+        assert sized_image_url(self.BASE, width) == self.BASE
+
+    def test_result_is_a_plain_https_url(self):
+        assert sized_image_url(self.BASE, 420).startswith("https://")
