@@ -1,11 +1,21 @@
 # ── Secrets / local config ────────────────────────────────────────────────
+# Never commit a RAWG API key. Users supply their own at runtime; see the
+# "Security" section of README.md.
 .env
 .env.*
 !.env.example
 credentials.json
 library.json
 game_recommender_config.json
+secrets.json
+.netrc
+
+# Key material of any kind: RAWG keys, Android release signing keys, certs.
 *.key
+*.keystore
+*.jks
+*.p12
+*.pem
 
 # ── Python ────────────────────────────────────────────────────────────────
 __pycache__/

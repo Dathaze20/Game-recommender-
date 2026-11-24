@@ -338,6 +338,57 @@ the same reason.
 
 ---
 
+## Security
+
+**No API key is bundled with this project.** There is no key in the source, no
+key in the APK, and no key in CI. Every user supplies their own, and the
+in-app setup screen is the normal way to do it — see
+[RAWG API key](#rawg-api-key) above.
+
+Where a key lives, and where it must never live:
+
+| Location | Key? |
+| --- | --- |
+| `credentials.json` in the platform user-data directory, owner-only permissions | Yes — this is the only place |
+| `GAME_API_KEY` environment variable, or a git-ignored local `.env` | Yes, for development |
+| Anything tracked by git — source, tests, `buildozer.spec`, workflows, README | **Never** |
+| The built APK or AAB | **Never** |
+| GitHub Actions secrets | **Never** — CI needs no key, and the tests do not make live requests |
+
+Three things enforce this rather than relying on good intentions:
+
+- `.gitignore` excludes `.env`, `credentials.json`, and all `*.key` /
+  `*.keystore` / `*.pem` key material.
+- The Android workflow runs an audit step on the built APK that fails the
+  build if it finds a bundled credentials file or a 32-character hex literal
+  that looks like a RAWG key.
+- The test suite covers the no-key path: with nothing configured the app opens
+  the setup screen and makes **zero** API requests.
+
+### If you leak a key
+
+RAWG keys are free and disposable, so do not spend time trying to scrub one
+out of history — rotate it instead:
+
+1. Revoke and regenerate at <https://rawg.io/apikey>. The old key stops working
+   immediately, which makes any copy of it in history inert.
+2. Remove the key from the working tree and commit that.
+3. Only consider rewriting history if the key could not be revoked — for a
+   revoked key a force-push costs every collaborator a re-clone and buys
+   nothing.
+
+An earlier version of this project did have a key committed to `main`. That key
+has been revoked; it survives only in historical commits, where it is dead.
+
+### Reporting a vulnerability
+
+Open an issue for anything non-sensitive. For something you would rather not
+post publicly, open an issue saying only that you have a security report and
+asking for a contact route — do not include the details or any live
+credentials in the issue text.
+
+---
+
 ## Privacy
 
 Everything the app saves stays on your device. Nothing is uploaded anywhere and
