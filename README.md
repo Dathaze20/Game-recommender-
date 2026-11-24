@@ -247,7 +247,7 @@ recommendation fallback chain, and the desktop/Android URL split.
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| `ci.yml` | push, pull request | `ruff check` on 3.12, `pytest` on Python 3.9 / 3.10 / 3.11 / 3.12 |
+| `ci.yml` | push, pull request | `ruff check` on 3.12, `pytest` on Python 3.9 / 3.10 / 3.11 / 3.12 / 3.13 |
 | `android.yml` | push to `main`, pull request, manual dispatch | Builds the debug APK and uploads it as an artifact |
 
 Neither test job installs Kivy or starts a display server.

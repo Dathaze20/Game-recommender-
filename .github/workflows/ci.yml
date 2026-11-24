@@ -9,10 +9,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The runner image is pinned rather than tracking `ubuntu-latest`. When GitHub
+# rolled `ubuntu-latest` to Ubuntu 26.04, `actions/setup-python` stopped being
+# able to resolve Python 3.9 — `actions/python-versions` publishes no 3.9 build
+# for that image, since 3.9 reached end of life in October 2025 — and the test
+# matrix failed before running a single test. Pinning keeps CI reproducible and
+# decoupled from image rollovers; see the matching pin in android.yml.
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -32,11 +38,14 @@ jobs:
 
   test:
     name: Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        # 3.9 is the floor declared in pyproject.toml (`requires-python`), so it
+        # stays covered even though it is end-of-life upstream. 3.13 is here so
+        # the current release is tested too.
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
