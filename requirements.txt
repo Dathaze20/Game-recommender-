@@ -1,2 +1,4 @@
 kivy>=2.2.0
 requests>=2.31.0
+# Enables reading GAME_API_KEY from a local .env file (see .env.example).
+python-dotenv>=1.0.0
